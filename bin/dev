@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+bundle exec rerun --no-notify --pattern "**/*.rb" rackup config.ru
+
