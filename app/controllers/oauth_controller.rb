@@ -18,11 +18,7 @@ class OauthController < ApplicationController
   post "/register" do
     content_type :json
 
-    begin
-      request_body = JSON.parse(request.body.read)
-    rescue JSON::ParserError
-      halt 400, { error: "invalid_request", error_description: "Invalid JSON" }.to_json
-    end
+    request_body = require_json_body!
 
     client_name = request_body["client_name"]
     redirect_uris = request_body["redirect_uris"]
@@ -51,23 +47,10 @@ class OauthController < ApplicationController
 
   # OAuth Authorization endpoint - initiates Planning Center OAuth
   get "/authorize" do
-    client_id = params[:client_id]
-    redirect_uri = params[:redirect_uri]
-    response_type = params[:response_type]
-    state = params[:state]
-    code_challenge = params[:code_challenge]
-    code_challenge_method = params[:code_challenge_method] || "S256"
-    scope = params[:scope] || "planning_center:read"
-
-    # Validate required parameters
-    halt 400, { error: "invalid_request", error_description: "missing client_id" }.to_json unless client_id
-    halt 400, { error: "invalid_request", error_description: "missing redirect_uri" }.to_json unless redirect_uri
-    halt 400, { error: "invalid_request", error_description: "unsupported_response_type" }.to_json unless response_type == "code"
-    halt 400, { error: "invalid_request", error_description: "missing code_challenge for PKCE" }.to_json unless code_challenge
+    client_id, redirect_uri, state, scope, code_challenge, code_challenge_method = require_oauth_authorization_params!(params)
 
     # Find OAuth application
-    application = OauthApplication.find_by(uid: client_id)
-    halt 400, { error: "invalid_client" }.to_json unless application
+    application = OauthApplication.find_by!(uid: client_id)
 
     # Store OAuth request in session for Planning Center flow
     session[:oauth_request] = {
@@ -94,88 +77,47 @@ class OauthController < ApplicationController
 
   # Planning Center OAuth callback - completes the flow
   get "/planning_center/callback" do
-    code = params[:code]
-    error = params[:error]
-
-    logger.info "Planning Center callback received:"
-    logger.info "  Code: #{code}" if code
-    logger.info "  Error: #{error}" if error
-    logger.info "  All params: #{params.inspect}"
-    logger.info "  Request headers: #{request.env.select { |k, v| k.start_with?('HTTP_') }.inspect}"
-
     oauth_request = session[:oauth_request]
-    halt 400, { error: "invalid_request", error_description: "no pending oauth request" }.to_json unless oauth_request
+    require_oauth_session!(oauth_request)
 
+    error = params[:error]
     if error
       # Return error to MCP client
       logger.info "OAuth error from Planning Center: #{error}"
       redirect "#{oauth_request[:redirect_uri]}?error=#{error}&state=#{oauth_request[:state]}"
     end
 
-    halt 400, { error: "invalid_request", error_description: "missing authorization code" }.to_json unless code
+    code = params[:code]
+    require_oauth_authorization_code!(code)
 
     # Exchange code for Planning Center tokens
     planning_center_client = create_planning_center_client
     callback_uri = "#{request.base_url}/oauth/planning_center/callback"
 
-    logger.info "Exchanging code for Planning Center tokens:"
-    logger.info "  Code: #{code}"
-    logger.info "  Redirect URI: #{callback_uri}"
-    logger.info "  Client Site: #{planning_center_client.site}"
-
     begin
-      logger.info "About to exchange authorization code for tokens:"
-      logger.info "  Code: #{code[0..20]}..." # Log first 20 chars for security
-      logger.info "  Callback URI: #{callback_uri}"
-      logger.info "  Planning Center Client Site: #{planning_center_client.site}"
-      logger.info "  Client ID: #{ENV['PLANNING_CENTER_CLIENT_ID']}"
-      logger.info "  Token endpoint will be: #{planning_center_client.site}/oauth/token"
-
       token_response = planning_center_client.auth_code.get_token(
         code,
         redirect_uri: callback_uri
       )
-      logger.info "OAuth2 get_token succeeded!"
-      logger.info "Token response class: #{token_response.class}"
-      logger.info "Token present: #{!token_response.token.nil?}"
-      logger.info "Refresh token present: #{!token_response.refresh_token.nil?}"
-      logger.info "Expires at: #{token_response.expires_at}"
 
-      # Get user info from Planning Center
-      logger.info "About to fetch user info from /people/v2/me"
-      logger.info "Token client site: #{token_response.client.site}"
-      logger.info "Full URL will be: #{token_response.client.site}/people/v2/me"
-
-      # First try the OAuth2 library method
-      begin
-        logger.info "Trying OAuth2 library get method..."
-        user_response = token_response.get('/people/v2/me?include=emails', headers: {
-          'Accept' => 'application/vnd.api+json',
-          'Content-Type' => 'application/vnd.api+json'
-        })
-        logger.info "OAuth2 library call succeeded!"
-        user_data = JSON.parse(user_response.body)
-      rescue OAuth2::Error => e
-        logger.error "OAuth2 library call failed: #{e.class}: #{e.message}"
-        logger.error "Response: #{e.response.inspect if e.respond_to?(:response)}"
-        raise e
-      end
-
-      # Create or update account
+      user_response = token_response.get("/people/v2/me?include=emails", headers: {
+        "Accept" => "application/vnd.api+json",
+        "Content-Type" => "application/vnd.api+json"
+      })
+      user_data = JSON.parse(user_response.body)
       account = Account.find_or_create_by(planning_center_id: user_data.dig("data", "id")) do |acc|
         acc.email = user_data["included"].find { |inc| inc["type"] == "Email" }.dig("attributes", "address")
         acc.name = user_data.dig("data", "attributes", "name")
       end
 
-      # Store Planning Center tokens
-      pc_token = account.planning_center_token || account.build_planning_center_token
-      pc_token.assign_attributes(
+      planning_center_token = account.planning_center_token || account.build_planning_center_token
+      planning_center_token.assign_attributes(
         access_token: token_response.token,
         refresh_token: token_response.refresh_token,
         expires_at: token_response.expires_at ? Time.at(token_response.expires_at) : nil,
         scopes: PlanningCenterToken::PLANNING_CENTER_SCOPES.join(" ")
       )
-      pc_token.save!
+      planning_center_token.save!
 
       # Create OAuth grant for MCP client
       application = OauthApplication.find(oauth_request[:application_id])
@@ -210,34 +152,20 @@ class OauthController < ApplicationController
   post "/token" do
     content_type :json
 
-    grant_type = params[:grant_type]
-    code = params[:code]
-    redirect_uri = params[:redirect_uri]
-    client_id = params[:client_id]
-    client_secret = params[:client_secret]
-    code_verifier = params[:code_verifier]
-
-    halt 400, { error: "unsupported_grant_type" }.to_json unless grant_type == "authorization_code"
-    halt 400, { error: "invalid_request", error_description: "missing code" }.to_json unless code
-    halt 400, { error: "invalid_request", error_description: "missing code_verifier" }.to_json unless code_verifier
+    code, redirect_uri, code_verifier = require_oauth_token_params!(params)
 
     # Find the grant
-    grant = OauthGrant.find_by(code: code)
-    halt 400, { error: "invalid_grant" }.to_json unless grant
-    halt 400, { error: "invalid_grant" }.to_json unless grant.valid_for_exchange?
-    halt 400, { error: "invalid_grant" }.to_json unless grant.redirect_uri == redirect_uri
+    grant = OauthGrant.find_by!(code: code)
+    require_valid_oauth_grant_for_exchange!(grant, redirect_uri)
 
     # Verify PKCE
-    unless verify_pkce_challenge(code_verifier, grant.code_challenge, grant.code_challenge_method)
-      halt 400, { error: "invalid_grant", error_description: "PKCE verification failed" }.to_json
-    end
+    require_valid_pkce!(code_verifier, grant.code_challenge, grant.code_challenge_method)
 
     # Create access token
     access_token = OauthToken.create!(
       oauth_application: grant.oauth_application,
       account: grant.account,
-      # TODO: extract this to a constant in OauthToken and make it longer
-      expires_in: 3600, # 1 hour
+      expires_in: OauthToken::EXPIRES_IN,
       scopes: grant.scopes
     )
 
@@ -252,3 +180,4 @@ class OauthController < ApplicationController
     }.to_json
   end
 end
+

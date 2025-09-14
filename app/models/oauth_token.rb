@@ -1,4 +1,6 @@
 class OauthToken < ActiveRecord::Base
+  EXPIRES_IN = 3600 # 1 hour
+
   belongs_to :oauth_application
   belongs_to :account, optional: true
 

@@ -4,24 +4,10 @@ class McpController < ApplicationController
     content_type :json
     account = require_oauth_token
 
-    begin
-      request_data = JSON.parse(request.body.read)
-    rescue JSON::ParserError => e
-      halt 400, {
-        jsonrpc: "2.0",
-        error: { code: -32700, message: "Parse error" },
-        id: nil
-      }.to_json
-    end
+    request_data = require_json_rpc_body!
 
     # Basic JSON-RPC validation
-    unless request_data["jsonrpc"] == "2.0"
-      halt 400, {
-        jsonrpc: "2.0",
-        error: { code: -32600, message: "Invalid Request" },
-        id: request_data["id"]
-      }.to_json
-    end
+    require_json_rpc_version!(request_data)
 
     method = request_data["method"]
     params = request_data["params"] || {}
@@ -100,3 +86,4 @@ class McpController < ApplicationController
     end
   end
 end
+
