@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+
+require_relative '../config/environment'
+require 'irb'
+
+# Load all models and the app
+puts "Loading MCP server environment..."
+
+# Make app available in console
+def app
+  @app ||= Sinatra::Application.new
+end
+
+# Show environment info
+puts "Environment: #{ENV["SINATRA_ENV"] || ENV["RACK_ENV"] || "development"}"
+puts "Database: #{ActiveRecord::Base.connection.adapter_name}"
+
+# Show available models
+puts "\nAvailable models:"
+puts "- Account"
+puts "- OauthApplication"
+puts "- OauthGrant"
+puts "- OauthToken"
+puts "- PlanningCenterToken"
+
+puts "\nStarting IRB console..."
+IRB.start
