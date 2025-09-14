@@ -1,35 +1,4 @@
-class McpServer < Sinatra::Base
-  register Sinatra::ActiveRecordExtension
-  helpers AuthenticationHelpers, OauthHelpers, PlanningCenterHelpers, ValidationHelpers
-
-
-  configure do
-    set :session_secret, ENV["SESSION_SECRET"] || "dev_secret_key"
-    enable :sessions
-
-    # Logs
-    enable :logging
-    log_dir = File.join(root, "log")
-    FileUtils.mkdir_p(log_dir) unless File.exist?(log_dir)
-    log_file = File.new("#{log_dir}/#{environment}.log", "a+")
-    log_file.sync = true
-    use Rack::CommonLogger, log_file
-  end
-
-  configure :development do
-    use BetterErrors::Middleware
-    BetterErrors.application_root = __dir__
-  end
-
-  get "/" do
-    "MCP Server is running"
-  end
-
-  get "/health" do
-    content_type :json
-    { status: "ok", timestamp: Time.now.iso8601 }.to_json
-  end
-
+class OauthController < ApplicationController
   # OAuth discovery endpoint
   get "/.well-known/oauth-authorization-server" do
     content_type :json
@@ -46,7 +15,7 @@ class McpServer < Sinatra::Base
     }.to_json
   end
 
-  post "/oauth/register" do
+  post "/register" do
     content_type :json
 
     begin
@@ -81,7 +50,7 @@ class McpServer < Sinatra::Base
   end
 
   # OAuth Authorization endpoint - initiates Planning Center OAuth
-  get "/oauth/authorize" do
+  get "/authorize" do
     client_id = params[:client_id]
     redirect_uri = params[:redirect_uri]
     response_type = params[:response_type]
@@ -124,7 +93,7 @@ class McpServer < Sinatra::Base
   end
 
   # Planning Center OAuth callback - completes the flow
-  get "/oauth/planning_center/callback" do
+  get "/planning_center/callback" do
     code = params[:code]
     error = params[:error]
 
@@ -238,7 +207,7 @@ class McpServer < Sinatra::Base
   end
 
   # OAuth Token endpoint
-  post "/oauth/token" do
+  post "/token" do
     content_type :json
 
     grant_type = params[:grant_type]
@@ -281,132 +250,5 @@ class McpServer < Sinatra::Base
       expires_in: access_token.expires_in,
       scope: access_token.scopes
     }.to_json
-  end
-
-  # MCP Protocol endpoints
-
-  # Main MCP JSON-RPC endpoint
-  post "/" do
-    content_type :json
-    account = require_oauth_token
-
-    begin
-      request_data = JSON.parse(request.body.read)
-    rescue JSON::ParserError => e
-      halt 400, {
-        jsonrpc: "2.0",
-        error: { code: -32700, message: "Parse error" },
-        id: nil
-      }.to_json
-    end
-
-    # Basic JSON-RPC validation
-    unless request_data["jsonrpc"] == "2.0"
-      halt 400, {
-        jsonrpc: "2.0",
-        error: { code: -32600, message: "Invalid Request" },
-        id: request_data["id"]
-      }.to_json
-    end
-
-    method = request_data["method"]
-    params = request_data["params"] || {}
-    id = request_data["id"]
-
-    case method
-    when "initialize"
-      {
-        jsonrpc: "2.0",
-        result: {
-          protocolVersion: "2024-11-05",
-          capabilities: {
-            resources: {},
-            tools: {}
-          },
-          serverInfo: {
-            name: "Planning Center MCP Server",
-            version: "1.0.0"
-          }
-        },
-        id: id
-      }.to_json
-    when "notifications/initialized"
-      # No response needed for notification
-      status 204
-    when "resources/list"
-      {
-        jsonrpc: "2.0",
-        result: {
-          resources: [
-            {
-              uri: "planning-center://people/me",
-              name: "My Profile",
-              description: "Your Planning Center profile information",
-              mimeType: "application/json"
-            }
-          ]
-        },
-        id: id
-      }.to_json
-    when "resources/read"
-      uri = params["uri"]
-      case uri
-      when "planning-center://people/me"
-        {
-          jsonrpc: "2.0",
-          result: {
-            contents: [
-              {
-                uri: uri,
-                mimeType: "application/json",
-                text: {
-                  id: account.planning_center_id,
-                  email: account.email,
-                  name: account.name,
-                  planning_center_authenticated: account.planning_center_authenticated?
-                }.to_json
-              }
-            ]
-          },
-          id: id
-        }.to_json
-      else
-        halt 404, {
-          jsonrpc: "2.0",
-          error: { code: -32602, message: "Resource not found" },
-          id: id
-        }.to_json
-      end
-    else
-      halt 404, {
-        jsonrpc: "2.0",
-        error: { code: -32601, message: "Method not found" },
-        id: id
-      }.to_json
-    end
-  end
-
-  # Get user info
-  get "/api/me" do
-    content_type :json
-    account = require_oauth_token
-
-    {
-      id: account.planning_center_id,
-      email: account.email,
-      name: account.name,
-      planning_center_authenticated: account.planning_center_authenticated?
-    }.to_json
-  end
-
-  # Proxy to Planning Center People API
-  # TODO: this is a placeholder for future resources and tools
-  get "/api/people/*" do
-    content_type :json
-    account = require_oauth_token
-    require_planning_center_account_authentication(account)
-    <<~HTML
-    <h1>People API Proxy Not Implemented</h1>
-    HTML
   end
 end

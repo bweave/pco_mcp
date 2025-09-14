@@ -14,7 +14,19 @@ ActiveRecord::Base.establish_connection(
   ENV["SINATRA_ENV"].to_sym
 )
 
-# Load app files
-Dir["#{File.expand_path("..", __dir__)}/app/**/*.rb"].each { |f| require f }
+# Load app files in specific order
+app_root = File.expand_path("..", __dir__)
 
-require_relative "../app"
+# First load helpers
+Dir["#{app_root}/app/helpers/*.rb"].each { |f| require f }
+# Then load models
+Dir["#{app_root}/app/models/*.rb"].each { |f| require f }
+# Load ApplicationController first
+require "#{app_root}/app/controllers/application_controller"
+# Then load other controllers
+Dir["#{app_root}/app/controllers/*.rb"].each { |f|
+  require f unless f.end_with?('application_controller.rb')
+}
+
+# Include helpers in ApplicationController after all files are loaded
+ApplicationController.helpers AuthenticationHelpers, OauthHelpers, PlanningCenterHelpers, ValidationHelpers
