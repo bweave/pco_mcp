@@ -10,6 +10,12 @@ gem "sinatra-activerecord", "~> 2.0"
 gem "fast-mcp", "~> 0.1"
 gem "activerecord", "~> 7.1"
 
+# OAuth and authentication
+gem "rodauth", "~> 2.0"
+gem "rodauth-oauth", "~> 1.6"
+gem "roda", "~> 3.0"
+gem "oauth2", "~> 2.0"
+
 # Database adapters
 gem "sqlite3", "~> 1.7", group: :development
 gem "mysql2", "~> 0.5", group: :production
@@ -31,6 +37,9 @@ group :development do
 end
 
 group :development, :test do
+  gem "better_errors", "~> 2.10"
+  gem "binding_of_caller", "~> 1.0"
+  gem "debug"
   gem "rake", "~> 13.0"
 end
 
