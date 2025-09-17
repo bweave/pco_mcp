@@ -1,25 +1,8 @@
 class OauthController < ApplicationController
-  # OAuth discovery endpoint
-  get "/.well-known/oauth-authorization-server" do
-    content_type :json
-    {
-      issuer: request.base_url.to_s,
-      authorization_endpoint: "#{request.base_url}/oauth/authorize",
-      token_endpoint: "#{request.base_url}/oauth/token",
-      registration_endpoint: "#{request.base_url}/oauth/register",
-      response_types_supported: [ "code" ],
-      grant_types_supported: [ "authorization_code", "refresh_token" ],
-      code_challenge_methods_supported: [ "S256" ],
-      scopes_supported: [ "planning_center:read", "planning_center:write" ],
-      token_endpoint_auth_methods_supported: [ "none" ] # PKCE clients don't need client authentication
-    }.to_json
-  end
-
   post "/register" do
     content_type :json
 
-    request_body = require_json_body!
-
+    request_body = JSON.parse(request.body.read)
     client_name = request_body["client_name"]
     redirect_uris = request_body["redirect_uris"]
     application_type = request_body["application_type"] || "native" # MCP clients are typically native apps
@@ -47,7 +30,8 @@ class OauthController < ApplicationController
 
   # OAuth Authorization endpoint - initiates Planning Center OAuth
   get "/authorize" do
-    client_id, redirect_uri, state, scope, code_challenge, code_challenge_method = require_oauth_authorization_params!(params)
+    params => { client_id:, code_challenge:, code_challenge_method:, redirect_uri:, response_type:, state: }
+    scope = params[:scope] || params["scope"] || ""
 
     # Find OAuth application
     application = OauthApplication.find_by!(uid: client_id)
@@ -78,7 +62,7 @@ class OauthController < ApplicationController
   # Planning Center OAuth callback - completes the flow
   get "/planning_center/callback" do
     oauth_request = session[:oauth_request]
-    require_oauth_session!(oauth_request)
+    halt 400, { error: "invalid_request", error_description: "no pending oauth request" }.to_json unless oauth_request
 
     error = params[:error]
     if error
@@ -88,7 +72,7 @@ class OauthController < ApplicationController
     end
 
     code = params[:code]
-    require_oauth_authorization_code!(code)
+    halt 400, { error: "invalid_request", error_description: "missing authorization code" }.to_json unless code
 
     # Exchange code for Planning Center tokens
     planning_center_client = create_planning_center_client
@@ -152,14 +136,16 @@ class OauthController < ApplicationController
   post "/token" do
     content_type :json
 
-    code, redirect_uri, code_verifier = require_oauth_token_params!(params)
+    params => { code:, code_verifier:, grant_type:, redirect_uri: }
+    halt 400, { error: "unsupported_grant_type" }.to_json unless grant_type == "authorization_code"
 
-    # Find the grant
     grant = OauthGrant.find_by!(code: code)
-    require_valid_oauth_grant_for_exchange!(grant, redirect_uri)
+    halt 400, { error: "invalid_grant" }.to_json unless grant.valid_for_exchange?
+    halt 400, { error: "invalid_grant" }.to_json unless grant.redirect_uri == redirect_uri
 
-    # Verify PKCE
-    require_valid_pkce!(code_verifier, grant.code_challenge, grant.code_challenge_method)
+    unless verify_pkce_challenge(code_verifier, grant.code_challenge, grant.code_challenge_method)
+      halt 400, { error: "invalid_grant", error_description: "PKCE verification failed" }.to_json
+    end
 
     # Create access token
     access_token = OauthToken.create!(
@@ -180,4 +166,3 @@ class OauthController < ApplicationController
     }.to_json
   end
 end
-
