@@ -25,8 +25,8 @@ Dir["#{app_root}/app/models/*.rb"].each { |f| require f }
 require "#{app_root}/app/controllers/application_controller"
 # Then load other controllers
 Dir["#{app_root}/app/controllers/*.rb"].each { |f|
-  require f unless f.end_with?('application_controller.rb')
+  require f unless f.end_with?("application_controller.rb")
 }
 
 # Include helpers in ApplicationController after all files are loaded
-ApplicationController.helpers AuthenticationHelpers, OauthHelpers, PlanningCenterHelpers, ValidationHelpers
+ApplicationController.helpers OauthHelpers, PlanningCenterHelpers
