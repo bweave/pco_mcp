@@ -19,7 +19,6 @@ class OauthToken < ActiveRecord::Base
   end
 
   def valid_for_requests?
-    debugger
     !expired? && !revoked?
   end
 
