@@ -7,8 +7,8 @@ ruby "3.3.2"
 # Core gems
 gem "sinatra", "~> 4.0"
 gem "sinatra-activerecord", "~> 2.0"
-gem "fast-mcp", "~> 0.1"
 gem "activerecord", "~> 7.1"
+gem "mcp", "~> 0.3.0"
 
 # OAuth and authentication
 gem "rodauth", "~> 2.0"
