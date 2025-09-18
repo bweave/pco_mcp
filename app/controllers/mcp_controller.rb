@@ -2,8 +2,8 @@ class McpController < ApplicationController
   before do
     @account = find_account_by_oauth_token
     halt 401, { error: "invalid_token" }.to_json unless @account
-    halt 403, { error: "planning_center_not_authenticated" }.to_json unless account.planning_center_authenticated?
-    halt 403, { error: "planning_center_token_expired" }.to_json unless account.planning_center_token.valid?
+    halt 403, { error: "planning_center_not_authenticated" }.to_json unless @account.planning_center_authenticated?
+    halt 403, { error: "planning_center_token_expired" }.to_json unless @account.planning_center_token.valid?
   end
 
   post "/" do
