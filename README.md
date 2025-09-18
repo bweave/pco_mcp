@@ -46,12 +46,14 @@ Built on:
 4. Configure environment variables:
 
    The application supports environment-specific configuration files:
+
    - `.env` - Base configuration (all environments)
    - `.env.development` - Development-specific overrides
    - `.env.staging` - Staging environment configuration
    - `.env.production` - Production environment configuration
 
    Create a `.env` file with:
+
    ```
    PLANNING_CENTER_CLIENT_ID=your_client_id
    PLANNING_CENTER_CLIENT_SECRET=your_client_secret
@@ -59,6 +61,7 @@ Built on:
    ```
 
    The server automatically connects to different Planning Center API endpoints based on `SINATRA_ENV`:
+
    - `development` → `http://api.pco.test`
    - `staging` → `https://api-staging.planningcenteronline.com`
    - `production` → `https://api.planningcenteronline.com`
@@ -72,6 +75,14 @@ Start the development server:
 ```
 
 This runs the server with auto-reloading on file changes.
+
+You can also provide `RACK_ENV` to specify the environment:
+
+```bash
+RACK_ENV=staging ./bin/dev
+```
+
+This will point to the staging Planning Center API.
 
 ## Add it to Claude Code
 
@@ -123,4 +134,3 @@ Run RuboCop for code style checks:
 ```bash
 bundle exec rubocop
 ```
-
