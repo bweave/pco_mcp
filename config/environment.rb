@@ -1,4 +1,4 @@
-ENV["SINATRA_ENV"] ||= "development"
+ENV["SINATRA_ENV"] ||= ENV["RACK_ENV"] || "development"
 
 require "bundler/setup"
 Bundler.require(:default, ENV["SINATRA_ENV"])
@@ -8,7 +8,7 @@ if ENV["SINATRA_ENV"] == "development" || ENV["SINATRA_ENV"] == "test"
 end
 
 # Load environment variables
-require "dotenv/load" if ENV["SINATRA_ENV"] == "development"
+Dotenv.load(".env.#{ENV['SINATRA_ENV']}", ".env")
 
 ActiveRecord::Base.establish_connection(
   ENV["SINATRA_ENV"].to_sym

@@ -12,12 +12,12 @@ test:
   adapter: sqlite3
   database: db/test.sqlite3
 
+staging:
+  <<: *default
+  adapter: sqlite3
+  database: db/staging.sqlite3
+
 production:
-  adapter: mysql2
-  encoding: utf8mb4
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  host: <%= ENV['DATABASE_HOST'] %>
-  database: <%= ENV['DATABASE_NAME'] %>
-  username: <%= ENV['DATABASE_USER'] %>
-  password: <%= ENV['DATABASE_PASSWORD'] %>
-  port: <%= ENV.fetch('DATABASE_PORT') { 3306 } %>
+  <<: *default
+  adapter: sqlite3
+  database: db/production.sqlite3

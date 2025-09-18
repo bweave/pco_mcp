@@ -5,7 +5,6 @@ class PlanningCenterToken < ActiveRecord::Base
 
   # TODO: add home scope
   PLANNING_CENTER_SCOPES = %w[
-    api
     people
     services
     calendar

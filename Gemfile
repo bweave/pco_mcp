@@ -9,6 +9,7 @@ gem "sinatra", "~> 4.0"
 gem "sinatra-activerecord", "~> 2.0"
 gem "activerecord", "~> 7.1"
 gem "mcp", "~> 0.3.0"
+gem "dotenv", "~> 3.0"
 
 # OAuth and authentication
 gem "rodauth", "~> 2.0"
@@ -17,8 +18,7 @@ gem "roda", "~> 3.0"
 gem "oauth2", "~> 2.0"
 
 # Database adapters
-gem "sqlite3", "~> 1.7", group: :development
-gem "mysql2", "~> 0.5", group: :production
+gem "sqlite3", "~> 1.7"
 
 # Server and middleware
 gem "puma", "~> 6.0"
@@ -31,9 +31,6 @@ group :development do
 
   # Code quality and formatting
   gem "rubocop-rails-omakase", "~> 1.0", require: false
-
-  # Development utilities
-  gem "dotenv", "~> 3.0"
 end
 
 group :development, :test do

@@ -43,13 +43,25 @@ Built on:
    bundle exec rake db:create db:migrate
    ```
 
-4. Configure environment variables in `.env`:
+4. Configure environment variables:
 
+   The application supports environment-specific configuration files:
+   - `.env` - Base configuration (all environments)
+   - `.env.development` - Development-specific overrides
+   - `.env.staging` - Staging environment configuration
+   - `.env.production` - Production environment configuration
+
+   Create a `.env` file with:
    ```
-   PLANNING_CENTER_APP_ID=your_app_id
-   PLANNING_CENTER_SECRET=your_secret
+   PLANNING_CENTER_CLIENT_ID=your_client_id
+   PLANNING_CENTER_CLIENT_SECRET=your_client_secret
    SESSION_SECRET=your_session_secret
    ```
+
+   The server automatically connects to different Planning Center API endpoints based on `SINATRA_ENV`:
+   - `development` → `http://api.pco.test`
+   - `staging` → `https://api-staging.planningcenteronline.com`
+   - `production` → `https://api.planningcenteronline.com`
 
 ## Development
 
