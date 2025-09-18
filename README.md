@@ -61,6 +61,12 @@ Start the development server:
 
 This runs the server with auto-reloading on file changes.
 
+## Add it to Claude Code
+
+```bash
+claude mcp add --scope user --transport http pco_mcp http://localhost:9292
+```
+
 ## MCP Tools
 
 ### People Search Tool
